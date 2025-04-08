@@ -2,8 +2,9 @@ using Il2CppScheduleOne.ItemFramework;
 using Il2CppScheduleOne.Product;
 using Il2CppScheduleOne.StationFramework;
 using MelonLoader;
-using UnityEngine;
 using MelonLoader.Utils;
+using System.Collections.Generic;
+using UnityEngine;
 [assembly: MelonInfo(typeof(RecipeListGui.RecipeListGuiClass), "Recipe List", "1.0.7", "Rezx, Community Updates By: ispa (Translation), pyst4r (effect colors)")]
 
 namespace RecipeListGui
@@ -48,15 +49,13 @@ namespace RecipeListGui
             { "Tropic Thunder", "#FE9F47" },
             { "Zombifying", "#71AB5D" }
         };
-        
-        
+
         private class DataForFullIngredentsList
         {
-            public string Name;
-            public int Qnt;
+            public string Name { get; set; } = string.Empty;
+            public int Qnt { get; set; }
         }
 
-        // Dictionary for translating names of products, ingredients and ui text
         private static Dictionary<string, string> _translationDictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         private static string Translate(string englishText)
@@ -64,13 +63,12 @@ namespace RecipeListGui
             if (string.IsNullOrEmpty(englishText))
                 return englishText;
 
-            if (_translationDictionary.TryGetValue(englishText, out string translation))
-                return translation;
+            if (_translationDictionary.TryGetValue(englishText, out string? translation))
+                return translation ?? englishText;
 
-            return englishText; //return the original text if the translation is not found
+            return englishText;
         }
 
-        //load translations from a file
         private static void LoadTranslations()
         {
             string translationFilePath = Path.Combine(MelonEnvironment.GameRootDirectory, "Mods", "Translations", "RecipeListGUI_translations.txt");
@@ -106,7 +104,6 @@ namespace RecipeListGui
             }
             else
             {
-                // Create a directory if it does not exist
                 string translationDir = Path.Combine(MelonEnvironment.GameRootDirectory, "Mods", "Translations");
                 if (!Directory.Exists(translationDir))
                 {
@@ -126,16 +123,14 @@ namespace RecipeListGui
                 }
             }
         }
-        
-        
-        private static MelonPreferences_Entry<float> _guiScale;
-        private static MelonPreferences_Entry<KeyCode> _toggleKeyCode;
-        private static MelonPreferences_Entry<KeyCode> _resetKeyCode;
-        private static MelonPreferences_Entry<float> _transparency;
-        private static MelonPreferences_Entry<Color> _pageColor;
+
+        private static MelonPreferences_Entry<float> _guiScale = null!;
+        private static MelonPreferences_Entry<KeyCode> _toggleKeyCode = null!;
+        private static MelonPreferences_Entry<KeyCode> _resetKeyCode = null!;
+        private static MelonPreferences_Entry<float> _transparency = null!;
+        private static MelonPreferences_Entry<Color> _pageColor = null!;
         public override void OnInitializeMelon()
         {
-
             LoadTranslations();
             MelonPreferences_Category melonCfgCategory = MelonPreferences.CreateCategory("RecipeListGUI");
             _guiScale = melonCfgCategory.CreateEntry<float>("GUI_Scale", 1f);
@@ -143,9 +138,20 @@ namespace RecipeListGui
             _resetKeyCode = melonCfgCategory.CreateEntry<KeyCode>("Reset_Button", KeyCode.F6);
             _transparency = melonCfgCategory.CreateEntry<float>("Transparency", 0.56f);
             _pageColor = melonCfgCategory.CreateEntry<Color>("Page_Color", Color.gray);
-            melonCfgCategory.SetFilePath( Path.Combine(MelonEnvironment.GameRootDirectory, "Mods", "RecipeGUI.cfg"));
-            melonCfgCategory.SaveToFile();
-            
+
+            string configPath = Path.Combine(MelonEnvironment.GameRootDirectory, "Mods", "RecipeGUI.cfg");
+            melonCfgCategory.SetFilePath(configPath);
+
+            if (!File.Exists(configPath))
+            {
+                melonCfgCategory.SaveToFile();
+                Melon<RecipeListGuiClass>.Logger.Msg("Config file created");
+            }
+            else
+            {
+                melonCfgCategory.LoadFromFile();
+                Melon<RecipeListGuiClass>.Logger.Msg("Config file loaded");
+            }
             Melon<RecipeListGuiClass>.Logger.Msg($"{_toggleKeyCode.Value} to open");
             Melon<RecipeListGuiClass>.Logger.Msg($"{_resetKeyCode.Value} while gui is open to reset gui location");
         }
@@ -167,7 +173,6 @@ namespace RecipeListGui
             }
         }
 
-
         private static bool _guiShowen;
         private static void ToggleMenu()
         {
@@ -183,67 +188,77 @@ namespace RecipeListGui
             }
         }
 
-
         private static void DrawPages()
         {
-            Color pageColor = _pageColor.Value;
-            float guiScale = _guiScale.Value;
-            GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(guiScale, guiScale, 1));
-            Texture2D transparentTex = new Texture2D(1, 1);
-            transparentTex.SetPixel(0, 0, new Color(pageColor.r, pageColor.g, pageColor.b, _transparency.Value));
-            transparentTex.Apply();
+            GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(_guiScale.Value, _guiScale.Value, 1));
+            GUIStyle style = CreateCustomWindowStyle(_pageColor.Value, _transparency.Value);
 
-            GUIStyle customWindowStyle = new GUIStyle(GUI.skin.window);
-            customWindowStyle.normal.textColor = Color.white;
-            customWindowStyle.normal.background = transparentTex;
+            _productListPageRect = GUI.Window(651, _productListPageRect, (GUI.WindowFunction)ProductListPage, "<b>" + Translate("Product List") + "</b>", style);
+            _favsListPageRect = GUI.Window(652, _favsListPageRect, (GUI.WindowFunction)FavListPage, "<b>" + Translate("Favorite List") + "</b>", style);
 
-            _productListPageRect = GUI.Window(651, _productListPageRect, (GUI.WindowFunction)ProductListPage, Translate("Product List"), customWindowStyle);
-            _favsListPageRect = GUI.Window(652, _favsListPageRect, (GUI.WindowFunction)FavListPage, Translate("Favorite List"), customWindowStyle);
-            
             if (_hasSelectedBud)
             {
-                _recipeResultPageRect = GUI.Window(653, _recipeResultPageRect, (GUI.WindowFunction)RecipePage, Translate("Recipe"), customWindowStyle);
+                _recipeResultPageRect = GUI.Window(653, _recipeResultPageRect, (GUI.WindowFunction)RecipePage, "<b>" + Translate("Recipe") + "</b>", style);
             }
         }
-        
 
-        private static Il2CppSystem.Collections.Generic.List<ProductDefinition> GetlistOfCreatedProducts()
+        private static GUIStyle CreateCustomWindowStyle(Color backgroundColor, float transparency)
+        {
+            Texture2D bgTex = new Texture2D(1, 1);
+            bgTex.SetPixel(0, 0, new Color(backgroundColor.r, backgroundColor.g, backgroundColor.b, transparency));
+            bgTex.Apply();
+
+            GUIStyle style = new GUIStyle(GUI.skin.window);
+
+            style.normal.background = bgTex;
+            style.onNormal.background = bgTex;
+            style.hover.background = bgTex;
+            style.active.background = bgTex;
+            style.focused.background = bgTex;
+
+            style.alignment = TextAnchor.UpperCenter;
+            style.normal.textColor = Color.white;
+            style.onNormal.textColor = Color.white;
+            style.hover.textColor = Color.white;
+            style.active.textColor = Color.white;
+            style.focused.textColor = Color.white;
+            style.fontStyle = FontStyle.Bold;
+            style.border = new RectOffset(0, 0, 0, 0);
+
+            return style;
+        }
+
+        private static Il2CppSystem.Collections.Generic.List<ProductDefinition>? GetlistOfCreatedProducts()
         {
             GameObject productObject = GameObject.Find("@Product");
             if (productObject == null)
             {
-                //Printy("Product object not found");
-                return null;
+                return new Il2CppSystem.Collections.Generic.List<ProductDefinition>();
             }
             ProductManager productManagerComp = productObject.GetComponent<ProductManager>();
             if (productManagerComp == null)
             {
-                //Printy("ProductManager component not found");
-                return null;
+                return new Il2CppSystem.Collections.Generic.List<ProductDefinition>();
             }
             return productManagerComp.AllProducts;
         }
 
-
-        private static Il2CppSystem.Collections.Generic.List<ProductDefinition> GetlistOf_FavProducts()
+        private static Il2CppSystem.Collections.Generic.List<ProductDefinition>? GetlistOf_FavProducts()
         {
             GameObject productObject = GameObject.Find("@Product");
             if (productObject == null)
             {
-                //Printy("Product object not found");
-                return null;
+                return new Il2CppSystem.Collections.Generic.List<ProductDefinition>();
             }
             ProductManager productManagerComp = productObject.GetComponent<ProductManager>();
             if (productManagerComp == null)
             {
-                //Printy("ProductManager component not found");
-                return null;
+                return new Il2CppSystem.Collections.Generic.List<ProductDefinition>();
             }
             Il2CppSystem.Collections.Generic.List<ProductDefinition> favourites = ProductManager.FavouritedProducts;
 
-            return favourites;
+            return favourites ?? new Il2CppSystem.Collections.Generic.List<ProductDefinition>();
         }
-
 
         private static float _costToMake;
         static Il2CppSystem.Collections.Generic.List<string> GetIngredientList(ProductDefinition product, int selectedProductRecipe)
@@ -252,9 +267,7 @@ namespace RecipeListGui
             List<DataForFullIngredentsList> ingredientListTemp = new();
 
             _costToMake = 0;
-            //Printy($"Selected {product.name} it has {product.Recipes.Count} recipes.");
             ProcessProduct(product, outputLines, selectedProductRecipe, true, ingredientListTemp);
-
             outputLines.Add("-----------------------------------------------------------------------------------");
             outputLines.Add($"{Translate("Market Price")} {product.MarketValue}, {Translate("Addictiv")}: {Math.Round(product.GetAddictiveness())}, {Translate("Cost")}: {_costToMake}, {Translate("After Cost")}: {product.MarketValue - _costToMake} ({Translate("base ingredients not included")})");
             outputLines.Add("-----------------------------------------------------------------------------------");
@@ -266,10 +279,10 @@ namespace RecipeListGui
             return outputLines;
         }
 
-        static void ProcessProduct(ProductDefinition product, Il2CppSystem.Collections.Generic.List<string> outputLines, int recipeToUse, bool isSelectedProductRecipe, System.Collections.Generic.List<DataForFullIngredentsList> ingredientListTemp)
-        {
-            //Printy($"ProcessProduct recipeToUse {recipeToUse}");
+        static int _currentStep = 0; // Neue Klassenvariable für die Schritt-Zählung
 
+        static void ProcessProduct(ProductDefinition product, Il2CppSystem.Collections.Generic.List<string> outputLines, int recipeToUse, bool isSelectedProductRecipe, System.Collections.Generic.List<DataForFullIngredentsList> ingredientListTemp, bool isRoot = true)
+        {
             if (!isSelectedProductRecipe && product == _selectedBud)
             {
                 return;
@@ -278,130 +291,135 @@ namespace RecipeListGui
             GameObject productObject = GameObject.Find("@Product");
             if (productObject == null)
             {
-                //Printy("ProcessProduct: Product object not found");
                 return;
             }
             ProductManager productManagerComp = productObject.GetComponent<ProductManager>();
             if (productManagerComp == null)
             {
-                //Printy("ProcessProduct: ProductManager component not found");
                 return;
             }
 
             if (product.Recipes.Count >= 1 && !productManagerComp.DefaultKnownProducts.Contains(product))
             {
                 var recipes = product.Recipes;
+                StationRecipe recipe = recipes.ToArray().ToList()[recipeToUse];
 
-                StationRecipe recipe = recipes.ToArray().ToList()[recipeToUse]; // use the selected recipe 
-
-                if (isSelectedProductRecipe) // check if the recipe is the for the selected product
+                // Zurücksetzen der Zählung für neuen Durchlauf
+                if (isRoot && isSelectedProductRecipe)
                 {
-                    outputLines.Add($"{Translate("Recipe for")} ({Translate(recipe.RecipeTitle)}) ");
-                    string effects = "";
-                    foreach (var effect in product.Properties)
-                    {
-                        
-                        string colorHex = effectColors.ContainsKey(effect.Name) ? effectColors[effect.Name] : "#FFFFFF";
-                        string coloredEffect = $"<b><color={colorHex}>{Translate(effect.Name)}</color></b>";
+                    _currentStep = 0;
+                }
 
-                        if (string.IsNullOrEmpty(effects))
+                var currentProductOutput = new Il2CppSystem.Collections.Generic.List<string>();
+                var currentProductIngredients = new System.Collections.Generic.List<DataForFullIngredentsList>();
+                var nestedProducts = new Il2CppSystem.Collections.Generic.List<ProductDefinition>();
+
+                foreach (var ingredient in recipe.Ingredients)
+                {
+                    if (ingredient.Item.Category.ToString() == "Product")
+                    {
+                        ProductDefinition? drug = ingredient.Item.TryCast<ProductDefinition>();
+                        if (drug != null)
                         {
-                            effects = coloredEffect;
-                        }
-                        else
-                        {
-                            effects += $", {coloredEffect}";
+                            currentProductOutput.Add($"{ingredient.Quantity}x {Translate(drug.Name)}");
+
+                            if (drug.Recipes.Count >= 1)
+                            {
+                                nestedProducts.Add(drug);
+                            }
                         }
                     }
-                    outputLines.Add(effects);
-                    outputLines.Add($"-----------------------------------------------------------------------------------");
-
-                    isSelectedProductRecipe = false;
                 }
-                else
-                {
-                    outputLines.Add($"{Translate("Recipe")}: {Translate(recipe.RecipeTitle)}");
-                }
-                // list for products with their own recipe
-                Il2CppSystem.Collections.Generic.List<ProductDefinition> nestedProducts = new Il2CppSystem.Collections.Generic.List<ProductDefinition>();
 
                 foreach (var ingredient in recipe.Ingredients)
                 {
                     string cat = ingredient.Item.Category.ToString();
-
                     if (cat == "Consumable" || cat == "Ingredient")
                     {
-                        StorableItemDefinition prop = ingredient.Item.TryCast<StorableItemDefinition>();
-                        //PropertyItemDefinition prop = ingredient.Item as PropertyItemDefinition;}
-
+                        StorableItemDefinition? prop = ingredient.Item.TryCast<StorableItemDefinition>();
                         if (prop != null)
                         {
-                            outputLines.Add($"{ingredient.Quantity}x {Translate(prop.Name)} {prop.BasePurchasePrice}$");
-                            // list for doing ingredient qnt count
-                            var existingIngredient = ingredientListTemp.ToArray().ToList().FirstOrDefault(i => i.Name == prop.Name);
+                            currentProductOutput.Add($"{ingredient.Quantity}x {Translate(prop.Name)} {prop.BasePurchasePrice}$");
+
+                            var existingIngredient = currentProductIngredients.FirstOrDefault(i => i.Name == prop.Name);
                             if (existingIngredient != null)
                             {
                                 existingIngredient.Qnt += ingredient.Quantity;
                             }
                             else
                             {
-                                ingredientListTemp.Add(new DataForFullIngredentsList() { Name = prop.Name, Qnt = ingredient.Quantity });
+                                currentProductIngredients.Add(new DataForFullIngredentsList() { Name = prop.Name, Qnt = ingredient.Quantity });
                             }
 
                             _costToMake += prop.BasePurchasePrice * ingredient.Quantity;
                             if (!ingredientIcons.ContainsKey(prop.Name))
                             {
-                                ingredientIcons.Add(prop.Name,prop.Icon);
-                            }
-
-                        }
-                        else
-                        {
-                            outputLines.Add($"{ingredient.Quantity} Ingredient: {ingredient.Item}");
-                            Melon<RecipeListGuiClass>.Logger.Msg($"ERROR ProcessProduct: prop null {cat}");
-                        }
-                    }
-                    else if (cat == "Product")
-                    {
-                        // For product ingredients, print the ingredient line first.
-                        ProductDefinition drug = ingredient.Item.TryCast<ProductDefinition>();
-                        if (drug != null)
-                        {
-                            outputLines.Add($"{ingredient.Quantity}x {Translate(drug.Name)}");
-                            // If this product has a recipe store it to process after all normal ingredients
-                            if (drug.Recipes.Count >= 1)
-                            {
-                                nestedProducts.Add(drug);
+                                ingredientIcons.Add(prop.Name, prop.Icon);
                             }
                         }
-                        else
-                        {
-                            outputLines.Add($"{ingredient.Quantity}xIngredient: {ingredient.Item}");
-                            Melon<RecipeListGuiClass>.Logger.Msg($"ERROR ProcessProduct: Drug null {cat}");
-                        }
-                    }
-                    else
-                    {
-                        outputLines.Add($"{ingredient.Quantity}xIngredient: {ingredient.Item}");
-                        Melon<RecipeListGuiClass>.Logger.Msg($"ERROR ProcessProduct: Unknown Category {cat}");
                     }
                 }
 
-                // after listing all ingredients for current product repeat for any drug products found in ingredient list.
+                if (isRoot && isSelectedProductRecipe)
+                {
+                    outputLines.Add($"<b>{Translate("Recipe for")} <i>{Translate(recipe.RecipeTitle)}</i></b>");
+
+                    var effectsBuilder = new System.Text.StringBuilder();
+                    int effectCounter = 0;
+                    foreach (var effect in product.Properties)
+                    {
+                        string colorHex = effectColors.ContainsKey(effect.Name) ? effectColors[effect.Name] : "#FFFFFF";
+                        string coloredEffect = $"<b><color={colorHex}>{Translate(effect.Name)}</color></b>";
+
+                        if (effectCounter > 0) effectsBuilder.Append(", ");
+                        effectsBuilder.Append(coloredEffect);
+                        effectCounter++;
+
+                        if (effectCounter % 4 == 0 && effectCounter != product.Properties.Count)
+                        {
+                            outputLines.Add(effectsBuilder.ToString());
+                            effectsBuilder.Clear();
+                            effectCounter = 0;
+                        }
+                    }
+                    if (effectsBuilder.Length > 0) outputLines.Add(effectsBuilder.ToString());
+                    outputLines.Add($"-----------------------------------------------------------------------------------");
+                }
+
                 foreach (var nestedProduct in nestedProducts)
                 {
-                    ProcessProduct(nestedProduct, outputLines, 0, false, ingredientListTemp); // pass 0 for recipe to use because the nested isnt the selected dumbass
+                    ProcessProduct(nestedProduct, outputLines, 0, false, ingredientListTemp, false);
                 }
+
+                if (!isRoot || !isSelectedProductRecipe)
+                {
+                    _currentStep++;
+                }
+
+                if (!isRoot || !isSelectedProductRecipe)
+                {
+                    outputLines.Add($"<b>Zwischenprodukt {_currentStep}: <i>{Translate(recipe.RecipeTitle)}</i></b>");
+                }
+                else
+                {
+                    outputLines.Add($"<b>Endprodukt: <i>{Translate(recipe.RecipeTitle)}</i></b>");
+                }
+
+                foreach (var line in currentProductOutput)
+                {
+                    outputLines.Add(line);
+                }
+
+                ingredientListTemp.AddRange(currentProductIngredients);
             }
         }
 
-
-        private static Il2CppSystem.Collections.Generic.List<string> _ingredientListRecipePage;
+        private static Il2CppSystem.Collections.Generic.List<string> _ingredientListRecipePage = new Il2CppSystem.Collections.Generic.List<string>();
         private static Vector2 _recipeResultPageScrollViewVector = Vector2.zero;
         private static Rect _recipeResultPageRect = new Rect(600, 20, 600, 600);
         private static bool _hasSelectedProductRecipe;
         private static int _selectedProductRecipeIndex;
-        private static ProductDefinition _lastSelectedBud;
+        private static ProductDefinition _lastSelectedBud = null!;
         private static Dictionary<string, Sprite> ingredientIcons = new();
 
         static void RecipePage(int windowId)
@@ -409,27 +427,23 @@ namespace RecipeListGui
             Rect resizeHandleRect = new Rect(_recipeResultPageRect.width - 50, _recipeResultPageRect.height - 50, 25, 25);
             GUI.Box(resizeHandleRect, "");
 
-            // close button
             if (GUI.Button(new Rect(_recipeResultPageRect.width - 45, 20, 30, 30), "X"))
             {
-                _selectedBud = null;
+                _selectedBud = null!;
                 _hasSelectedBud = false;
                 return;
             }
-            // if product has more then 1 recipe make a list otherwise just load the only recipe
-            //_selectedProductRecipeIndex is set to 0 when a new product is selected
+
             if (_selectedBud.Recipes.Count > 1)
             {
                 if (_hasSelectedProductRecipe)
                 {
-                    // Back button
                     if (GUI.Button(new Rect(_recipeResultPageRect.width - 85, 20, 30, 30), Translate("B")))
                     {
                         _hasSelectedProductRecipe = false;
-                        _ingredientListRecipePage = null;
+                        _ingredientListRecipePage = null!;
                     }
                 }
-
 
                 if (!_hasSelectedProductRecipe)
                 {
@@ -438,15 +452,11 @@ namespace RecipeListGui
                         if (GUI.Button(new Rect(_recipeResultPageRect.width / 3, 50 + 20 * i, 200, 20), $"{Translate("Recipe")} {i + 1}"))
                         {
                             _hasSelectedProductRecipe = true;
-
                             _selectedProductRecipeIndex = i;
                         }
                     }
-
                     ProcessResize(resizeHandleRect);
-
                     GUI.DragWindow(new Rect(0, 0, _recipeResultPageRect.width, _recipeResultPageRect.height - 30));
-
                     return;
                 }
 
@@ -454,59 +464,47 @@ namespace RecipeListGui
 
             if (_selectedBud != null)
             {
-                // get new ingredientList when selection changes.
                 if (_ingredientListRecipePage == null || _selectedBud != _lastSelectedBud)
                 {
                     _ingredientListRecipePage = GetIngredientList(_selectedBud, _selectedProductRecipeIndex);
-
                     _lastSelectedBud = _selectedBud;
                 }
-
                 _recipeResultPageScrollViewVector = GUI.BeginScrollView(new Rect(55, 20, _recipeResultPageRect.width - 55, _recipeResultPageRect.height), _recipeResultPageScrollViewVector, new Rect(0, 0, _recipeResultPageRect.width - 55, _ingredientListRecipePage.Count * 30));
-
                 var ingredientListTemp = _ingredientListRecipePage.ToArray().ToList();
-                
-                // make lables with the info from GetIngredientList
                 for (int i = 0; i < _ingredientListRecipePage.Count; i++)
                 {
-                    
                     string currentingredient = ingredientListTemp[i];
                     if (!currentingredient.StartsWith(" ") && !currentingredient.StartsWith("Price") && !currentingredient.StartsWith("Recipe") && !currentingredient.StartsWith("----"))
                     {
                         string[] currentingredientSplit = currentingredient.Split(' ');
                         string ingredientFromSplit = "";
                         string lastWord = currentingredientSplit.Last();
-                        
-                        if (lastWord.Contains("$")) // remove the ingredient quantity from the start and price from end then rebuild string
+
+                        if (lastWord.Contains("$"))
                         {
                             ingredientFromSplit = string.Join(" ", currentingredientSplit.Skip(1).Take(currentingredientSplit.Length - 2));
                         }
-                        else // remove the ingredient quantity from the start then rebuild string
+                        else
                         {
                             ingredientFromSplit = string.Join(" ", currentingredientSplit.Skip(1));
                         }
 
                         ingredientFromSplit = ingredientFromSplit.Trim();
-                        
 
-                        Sprite icon = ingredientIcons.ContainsKey(ingredientFromSplit) ? ingredientIcons[ingredientFromSplit] : null;
+
+                        Sprite? icon = ingredientIcons.ContainsKey(ingredientFromSplit) ? ingredientIcons[ingredientFromSplit] : null;
                         if (icon != null)
                         {
-                            GUI.DrawTexture(new Rect(8, 40 + (20 * i), 35, 22), icon.texture);
+                            GUI.DrawTexture(new Rect(8, 40 + (20 * i), 22, 22), icon.texture);
                         }
                     }
-
-
                     GUI.Label(new Rect(50, 40 + (20 * i), _recipeResultPageRect.width - 75, 20), ingredientListTemp[i]);
                 }
                 GUI.EndScrollView();
             }
-            
-            // resize
             ProcessResize(resizeHandleRect);
             GUI.DragWindow(new Rect(0, 0, _recipeResultPageRect.width, _recipeResultPageRect.height - 30));
         }
-        
 
         private static Vector2 _productListPageScrollViewVector = Vector2.zero;
         private static Rect _productListPageRect = new Rect(100, 20, 295, 55);
@@ -514,20 +512,17 @@ namespace RecipeListGui
         private static bool _hasSelectedProductType;
         private static string _typeOfDrugToFilter = "";
         private static bool _hasSelectedBud;
-        private static ProductDefinition _selectedBud;
+        private static ProductDefinition _selectedBud = null!;
         private static bool _shouldMinimizeProductListPage = true;
         private static bool _sortProductListPageByPrice = false;
         
-        
         static void ProductListPage(int windowID)
         {
-
             if (_shouldMinimizeProductListPage)
             {
                 if (GUI.Button(new Rect(_productListPageRect.width - 25, 2, 18, 17), "+"))
                 {
                     _shouldMinimizeProductListPage = false;
-
                     _productListPageRect = new Rect(_productListPageRect.x, _productListPageRect.y, 295, 300);
                 }
                 GUI.DragWindow(new Rect(20, 10, 500, 500));
@@ -538,7 +533,6 @@ namespace RecipeListGui
                 if (GUI.Button(new Rect(_productListPageRect.width - 25, 2, 17, 17), "-"))
                 {
                     _shouldMinimizeProductListPage = true;
-
                     _productListPageRect = new Rect(_productListPageRect.x, _productListPageRect.y, 295, 55);
                     return;
                 }
@@ -549,7 +543,6 @@ namespace RecipeListGui
             {
                 return;
             }
-
 
             if (!_hasSelectedProductType)
             {
@@ -582,7 +575,6 @@ namespace RecipeListGui
             }
             else
             {
-                // Back button
                 if (GUI.Button(new Rect(_productListPageRect.width - 37, 20, 29, 27), "B"))
                 {
                     _hasSelectedProductType = false;
@@ -590,7 +582,6 @@ namespace RecipeListGui
                     _productListPageScrollViewVector = Vector2.zero;
                 }
 
-                // When a product type is selected, show the filter button
                 if (GUI.Button(new Rect(_productListPageRect.width - 37, 50, 29, 27), "$"))
                 {
                     _sortProductListPageByPrice = !_sortProductListPageByPrice;
@@ -598,14 +589,11 @@ namespace RecipeListGui
                 }
             }
 
-
-
             var sortedProducts = _listOfCreatedProducts.ToArray().ToList();
             if (_typeOfDrugToFilter != "")
             {
                 sortedProducts = sortedProducts.Where(product => product.DrugType.ToString() == _typeOfDrugToFilter).ToList();
             }
-
 
             if (_sortProductListPageByPrice)
             {
@@ -613,18 +601,14 @@ namespace RecipeListGui
             }
 
             _productListPageScrollViewVector = GUI.BeginScrollView(new Rect(55, 20, 300, 300), _productListPageScrollViewVector, new Rect(0, 0, 300, sortedProducts.Count * 20 + 10));
-
-            // i should probably not render buttons that are offscreen or do a page system but 2 brain cells
             int spacer = 0;
             foreach (var createdProduct in sortedProducts)
             {
-                
                 if (GUI.Button(new Rect(0, 20 * spacer, 160, 20), Translate(createdProduct.name)))
                 {
-                    //Printy($"Selected {createdProduct.name}");
                     _selectedBud = createdProduct;
                     _hasSelectedBud = true;
-                    _ingredientListRecipePage = null;
+                    _ingredientListRecipePage = new Il2CppSystem.Collections.Generic.List<string>();
                     _hasSelectedProductRecipe = false;
                     _selectedProductRecipeIndex = 0;
                 }
@@ -636,7 +620,6 @@ namespace RecipeListGui
             GUI.DragWindow(new Rect(20, 10, 500, 500));
         }
 
-
         private static Vector2 _favsListPageScrollViewVector = Vector2.zero;
         private static Rect _favsListPageRect = new Rect(100, 325, 295, 55);
         private static Il2CppSystem.Collections.Generic.List<ProductDefinition>? _listOf_FavsProducts;
@@ -645,31 +628,27 @@ namespace RecipeListGui
 
         static void FavListPage(int windowID)
         {
-
             if (_shouldMinimizeFavListPage)
             {
                 if (GUI.Button(new Rect(_favsListPageRect.width - 25, 2, 18, 17), "+"))
                 {
                     _shouldMinimizeFavListPage = false;
-
                     _favsListPageRect = new Rect(_favsListPageRect.x, _favsListPageRect.y, 295, 300);
                     return;
                 }
                 GUI.DragWindow(new Rect(20, 10, 500, 500));
                 return;
-
             }
             else
             {
                 if (GUI.Button(new Rect(_favsListPageRect.width - 25, 2, 17, 17), "-"))
                 {
                     _shouldMinimizeFavListPage = true;
-
                     _favsListPageRect = new Rect(_favsListPageRect.x, _favsListPageRect.y, 295, 55);
                     return;
                 }
             }
-            // filter button
+            
             if (GUI.Button(new Rect(_favsListPageRect.width - 37, 20, 29, 27), "$"))
             {
                 _sortFavListPageByPrice = !_sortFavListPageByPrice;
@@ -679,11 +658,9 @@ namespace RecipeListGui
             _listOf_FavsProducts ??= GetlistOf_FavProducts();
             if (_listOf_FavsProducts == null)
             {
-                //Printy("listOf_FavsProducts is null");
                 return;
             }
 
-            
             var filteredFavProducts = _listOf_FavsProducts.ToArray().ToList();
             
             if (_sortFavListPageByPrice)
@@ -698,25 +675,19 @@ namespace RecipeListGui
             {
                 if (GUI.Button(new Rect(0, 20 * spacer, 160, 20), Translate(favProduct.name)))
                 {
-                    //Printy($"Selected Fav: {favProduct.name}");
                     _selectedBud = favProduct;
                     _hasSelectedBud = true;
-                    _ingredientListRecipePage = null;
+                    _ingredientListRecipePage = new Il2CppSystem.Collections.Generic.List<string>();
                     _hasSelectedProductRecipe = false;
                     _selectedProductRecipeIndex = 0;
                 }
-
-                // draw price lable
                 GUI.Label(new Rect(165, 20 * spacer, 50, 20), $"${favProduct.MarketValue}");
-
                 spacer++;
             }
             GUI.EndScrollView();
             GUI.DragWindow(new Rect(20, 10, 500, 500));
         }
 
-
-        // ProcessResize was ai generated because 2 brain cells
         private static bool _isResizing;
         private static Vector2 _initialMousePosition;
         private static Rect _initialWindowRect;
